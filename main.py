@@ -92,28 +92,39 @@ def check_specific_boats():
             except Exception:
                 pass
 
-            # 📌 핵심 개선: 표의 각 행(<tr>)을 가져와서 특정 배가 속한 그 줄의 텍스트만 엄격하게 분석
-            rows = driver.find_elements(By.TAG_NAME, "tr")
+            # 📌 배별 독립된 카드나 표의 행(tr) 요소를 수집하여 다른 배와 텍스트가 섞이지 않도록 격리
+            blocks = driver.find_elements(By.XPATH, "//tr | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list') or contains(@class, 'row') or contains(@class, 'ship') or contains(@class, 'schedule_box')]")
 
             for date_str in target_dates:
+                parts = date_str.replace("일", "").split("월")
+                if len(parts) == 2:
+                    m_val = parts[0].strip()
+                    d_val = parts[1].strip()
+                else:
+                    m_val = ""
+                    d_val = ""
+
                 for boat in target_boats:
                     found_real_slot = False
                     status_msg = "마감 또는 정보 없음"
 
-                    for row in rows:
+                    for block in blocks:
                         try:
-                            row_text = row.text
-                            # 이 행에 우리가 찾는 배 이름이 포함되어 있는지 확인
-                            if boat in row_text:
-                                # 해당 배의 행 안에서 마감/완료/대기 문구가 있는지 먼저 엄격하게 체크
-                                if any(keyword in row_text for keyword in ["예약완료", "예약 완료", "대기하기", "예약마감", "마감"]):
-                                    status_msg = "예약 완료 / 마감 상태"
-                                    break
-                                # 오직 명확한 예약 가능 문구가 그 행 안에 있을 때만 인정
-                                elif "예약하기" in row_text or "바로예약" in row_text:
-                                    found_real_slot = True
-                                    status_msg = "예약 가능"
-                                    break
+                            block_text = block.text
+                            # 1단계: 이 블록 안에 우리가 찾는 배 이름이 들어있는지 확인
+                            if boat in block_text:
+                                # 2단계: 이 블록 안에 타겟 날짜가 들어있는지 확인
+                                date_matched = (date_str in block_text) or (m_val and d_val and m_val in block_text and d_val in block_text)
+                                if date_matched:
+                                    # 3단계: 마감/완료/대기 키워드가 있으면 확실히 제외
+                                    if any(keyword in block_text for keyword in ["대기하기", "예약마감", "마감", "예약완료", "예약 완료", "매진"]):
+                                        status_msg = "마감 또는 대기 상태"
+                                        break
+                                    # 4단계: 예약 가능 버튼/문구가 명확히 있을 때만 인정
+                                    elif "예약하기" in block_text or "바로예약" in block_text:
+                                        found_real_slot = True
+                                        status_msg = "예약 가능"
+                                        break
                         except Exception:
                             continue
 
