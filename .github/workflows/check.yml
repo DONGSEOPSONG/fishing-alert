@@ -2,7 +2,7 @@ name: Fishing Seat Checker
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # 30분마다 자동으로 실행
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4
+          pip install requests beautifulsoup4 selenium webdriver-manager
 
       - name: Run script
         run: python main.py
