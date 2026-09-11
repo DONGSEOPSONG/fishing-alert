@@ -2,15 +2,18 @@
   "sites": [
     {
       "name": "오천항 제우스호",
-      "url": "https://www.ochzeus.com/index.php?mid=bk"
+      "url": "https://www.ochzeus.com/index.php?mid=bk",
+      "target_boats": ["제우스호"]
     },
     {
       "name": "대천항 야야",
-      "url": "http://www.yayaho.kr/index.php?mid=bk"
+      "url": "http://www.yayaho.kr/index.php?mid=bk",
+      "target_boats": ["야야호"]
     },
     {
-      "name": "모항 스페이스호",
-      "url": "http://space.thefishing.kr/index.php?mid=bk"
+      "name": "선상24 스페이스호",
+      "url": "https://spaceho.sunsang24.com/ship/schedule_fleet",
+      "target_boats": ["가가호"]
     }
   ],
   "target_dates": [
