@@ -61,62 +61,32 @@ def check_specific_boats():
     try:
         for site in sites:
             site_name = site["name"]
-            url = site["url"]
+            base_url = site["url"]
             target_boats = site.get("target_boats", [])
-
-            print(f"\n접속 중: {site_name}")
-            
-            try:
-                driver.get(url)
-            except Exception:
-                print(f"⚠️ {site_name} 로딩 지연 (진행)")
-
-            time.sleep(2)
-            remove_popups(driver)
 
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
                 if len(parts) == 2:
-                    m_val = parts[0].strip() # 예: "11"
-                    d_val = parts[1].strip() # 예: "16"
+                    m_val = parts[0].strip()
+                    d_val = parts[1].strip()
                 else:
                     continue
 
-                # 📌 1단계: 월 전환 (onclick 속성이나 텍스트를 분석하여 자바스크립트 강제 실행)
+                # 📌 날짜 파라미터 다이렉트 결합 URL 생성
+                base_clean = base_url.split("?")[0]
+                target_url = f"{base_clean}?mid=bk&year=2026&month={m_val}&day={d_val}&mode=list&won=1&PA_N_UID=0&sel=day"
+
+                print(f"\n접속 중 [{site_name}] - {date_str}")
+                
                 try:
-                    month_elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{m_val}월') or contains(@onclick, '{m_val}')]")
-                    for el in month_elements:
-                        txt = el.text.strip()
-                        onclick_attr = el.get_attribute("onclick") or ""
-                        
-                        if txt in [f"{m_val}월", f"{m_val} 월", f"0{m_val}월"] or m_val in onclick_attr:
-                            if onclick_attr:
-                                driver.execute_script(onclick_attr)
-                            else:
-                                driver.execute_script("arguments[0].click();", el)
-                            time.sleep(2)
-                            break
+                    driver.get(target_url)
                 except Exception:
-                    pass
+                    print(f"⚠️ {site_name} 로딩 지연 (진행)")
 
-                # 📌 2단계: 일자 숫자 버튼 클릭
-                clicked_date = False
-                try:
-                    day_elements = driver.find_elements(By.XPATH, f"//a[text()='{d_val}'] | //span[text()='{d_val}'] | //td[text()='{d_val}'] | //div[text()='{d_val}']")
-                    for el in day_elements:
-                        if len(el.text.strip()) <= 2:
-                            driver.execute_script("arguments[0].click();", el)
-                            time.sleep(2)
-                            clicked_date = True
-                            break
-                except Exception:
-                    pass
+                time.sleep(2)
+                remove_popups(driver)
 
-                if not clicked_date:
-                    print(f" - {date_str} [{site_name}]: 일자 클릭 실패")
-                    continue
-
-                # 📌 3단계: 표의 각 행(<tr>)을 수집하여 상태 정밀 분석
+                # 📌 행 데이터 분석
                 rows = driver.find_elements(By.TAG_NAME, "tr")
 
                 for boat in target_boats:
@@ -139,7 +109,7 @@ def check_specific_boats():
                             continue
 
                     if found_real_slot:
-                        msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
+                        msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({target_url})"
                         send_telegram_message(msg)
                         print(f" - {date_str} [{boat}]: 예약 가능 포착! (알람 발송)")
                     else:
