@@ -84,7 +84,6 @@ def check_specific_boats():
             driver.execute_script("window.scrollTo(0, 500);")
             time.sleep(2)
 
-            # 월 선택 버튼(10월 등)이 있으면 클릭 시도
             try:
                 month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
                 if month_btns:
@@ -93,8 +92,9 @@ def check_specific_boats():
             except Exception:
                 pass
 
-            elements = driver.find_elements(By.XPATH, "//tr | //li | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list')]")
-            page_source = driver.page_source
+            # 📌 핵심 수정: 각 날짜/일정별 행(Row) 또는 카드 단위의 컨테이너를 정밀하게 수집
+            # 한 화면에 여러 배가 섞여 있어도 행 단위로 격리하여 다른 배의 상태와 섞이지 않도록 함
+            row_elements = driver.find_elements(By.XPATH, "//tr | //li | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list') or contains(@class, 'row')]")
 
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
@@ -109,22 +109,22 @@ def check_specific_boats():
                     found_real_slot = False
                     status_msg = "마감 또는 정보 없음"
 
-                    for el in elements:
+                    for el in row_elements:
                         try:
                             text = el.text
+                            # 1단계: 해당 영역(행)에 지정한 날짜와 배 이름이 동시에 들어있는지 확인
                             date_matched = (date_str in text) or (m_val and d_val and m_val in text and d_val in text)
                             
                             if date_matched and boat in text:
-                                # 📌 "예약하기" 또는 "바로예약" 키워드 모두 빈자리로 인정
-                                if "예약하기" in text or "바로예약" in text:
+                                # 2단계: 대기하기나 예약마감이 포함되어 있으면 무조건 불가능 처리
+                                if "대기하기" in text or "예약마감" in text or "마감" in text:
+                                    status_msg = "대기 또는 마감 상태"
+                                    break
+                                # 3단계: 명확하게 예약 가능 문구가 있을 때만 인정
+                                elif "예약하기" in text or "바로예약" in text:
                                     found_real_slot = True
                                     status_msg = "예약 가능"
                                     break
-                                elif "대기하기" in text:
-                                    status_msg = "대기하기 상태"
-                                    break
-                                else:
-                                    status_msg = "마감 상태"
                         except Exception:
                             continue
 
