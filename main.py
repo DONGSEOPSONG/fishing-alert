@@ -63,8 +63,7 @@ def check_specific_boats():
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=options)
-    # 📌 타임아웃을 아주 짧게 잡아 로딩이 오래 걸려도 즉시 소스를 가져오도록 변경
-    driver.set_page_load_timeout(8)
+    driver.set_page_load_timeout(10)
 
     try:
         for site in sites:
@@ -72,18 +71,17 @@ def check_specific_boats():
             url = site["url"]
             target_boats = site.get("target_boats", [])
 
-            print(f"접속 중: {site_name}")
+            print(f"\n접속 중: {site_name}")
             
             try:
                 driver.get(url)
             except Exception:
-                print(f"⚠️ {site_name} 로딩 중단 구간 도달 (수집 모드 진입)")
+                print(f"⚠️ {site_name} 로딩 시간 초과 (수집 모드 진입)")
 
             time.sleep(3)
             remove_popups_aggressively(driver)
 
-            # 스크롤을 내려서 데이터 렌더링 유도
-            driver.execute_script("window.scrollTo(0, 600);")
+            driver.execute_script("window.scrollTo(0, 500);")
             time.sleep(2)
 
             try:
@@ -94,35 +92,25 @@ def check_specific_boats():
             except Exception:
                 pass
 
-            # 각 일정 항목(행, 카드 등)을 세밀하게 수집
-            row_elements = driver.find_elements(By.XPATH, "//tr | //li | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list') or contains(@class, 'row') or contains(@class, 'col')]")
+            # 📌 핵심 개선: 표의 각 행(<tr>)을 가져와서 특정 배가 속한 그 줄의 텍스트만 엄격하게 분석
+            rows = driver.find_elements(By.TAG_NAME, "tr")
 
             for date_str in target_dates:
-                parts = date_str.replace("일", "").split("월")
-                if len(parts) == 2:
-                    m_val = parts[0].strip()
-                    d_val = parts[1].strip()
-                else:
-                    m_val = ""
-                    d_val = ""
-
                 for boat in target_boats:
                     found_real_slot = False
                     status_msg = "마감 또는 정보 없음"
 
-                    for el in row_elements:
+                    for row in rows:
                         try:
-                            text = el.text
-                            # 해당 영역에 날짜와 배 이름이 동시에 존재하는지 검사
-                            date_matched = (date_str in text) or (m_val and d_val and m_val in text and d_val in text)
-                            
-                            if date_matched and boat in text:
-                                # 대기하기나 마감 관련 문구가 포함되어 있다면 확실하게 제외
-                                if "대기하기" in text or "예약마감" in text or "마감" in text:
-                                    status_msg = "대기 또는 마감 상태"
+                            row_text = row.text
+                            # 이 행에 우리가 찾는 배 이름이 포함되어 있는지 확인
+                            if boat in row_text:
+                                # 해당 배의 행 안에서 마감/완료/대기 문구가 있는지 먼저 엄격하게 체크
+                                if any(keyword in row_text for keyword in ["예약완료", "예약 완료", "대기하기", "예약마감", "마감"]):
+                                    status_msg = "예약 완료 / 마감 상태"
                                     break
-                                # 예약 가능 문구가 정확히 있을 때만 빈자리 인정
-                                elif "예약하기" in text or "바로예약" in text:
+                                # 오직 명확한 예약 가능 문구가 그 행 안에 있을 때만 인정
+                                elif "예약하기" in row_text or "바로예약" in row_text:
                                     found_real_slot = True
                                     status_msg = "예약 가능"
                                     break
@@ -132,13 +120,13 @@ def check_specific_boats():
                     if found_real_slot:
                         msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
                         send_telegram_message(msg)
-                        print(f" - {date_str} [{boat}]: 예약 가능 포착 (알람 발송)")
+                        print(f" - {date_str} [{boat}]: 예약 가능 포착! (알람 발송)")
                     else:
                         print(f" - {date_str} [{boat}]: {status_msg}")
 
-                time.sleep(0.3)
+                time.sleep(0.2)
 
-        print("모든 검사 완료!")
+        print("\n모든 검사 완료!")
 
     except Exception as e:
         print(f"오류 발생: {e}")
