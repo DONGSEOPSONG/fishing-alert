@@ -1,28 +1,49 @@
-name: Fishing Seat Checker
+import os
+import requests
+from bs4 import BeautifulSoup
 
-on:
-  schedule:
-    - cron: '*/30 * * * *'  # 30분마다 자동으로 실행
-  workflow_dispatch:
+# 오천항 제우스호 예약 페이지 주소
+my_favorite_sites = [
+    {
+        "name": "오천항 제우스호",
+        "url": "https://www.ochzeus.com/index.php?mid=bk" 
+    }
+]
 
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+target_date = "10월 2일"  # 확인하고 싶은 날짜 (사이트 표기에 맞춰 "10.02" 등으로 바꿀 수도 있어요)
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+def send_telegram_message(text):
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not bot_token or not chat_id:
+        return
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    requests.post(url, json={"chat_id": chat_id, "text": text})
 
-      - name: Install dependencies
-        run: |
-          pip install requests beautifulsoup4
+def check_seats():
+    for site in my_favorite_sites:
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            response = requests.get(site["url"], headers=headers, timeout=10)
+            if response.status_code != 200:
+                print(f"접속 실패: {site['name']}")
+                continue
+            
+            soup = BeautifulSoup(response.text, "html.parser")
+            page_text = soup.get_text()
 
-      - name: Run script
-        run: python main.py
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+            # 지정한 날짜가 페이지 안에 있는지 확인
+            if target_date in page_text:
+                msg = f"[빈자리 감지 기원] {site['name']} 페이지에서 '{target_date}' 글자가 포착되었습니다!\n링크: {site['url']}"
+                send_telegram_message(msg)
+                print(msg)
+            else:
+                print(f"'{target_date}' 정보가 아직 없거나 페이지 구조 확인 필요: {site['name']}")
+                
+        except Exception as e:
+            print(f"오류 발생: {e}")
+
+if __name__ == "__main__":
+    check_seats()
