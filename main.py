@@ -68,7 +68,6 @@ def check_specific_boats():
             time.sleep(3)
             close_popups(driver)
 
-            # 월 선택 버튼 클릭 시도
             try:
                 month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
                 if month_btns:
@@ -81,13 +80,10 @@ def check_specific_boats():
             page_source = driver.page_source
 
             for date_str in target_dates:
-                # 예: "10월 2일" -> 월("10월"), 일("2") 분리하여 유연하게 체크
                 parts = date_str.replace("일", "").split("월")
                 if len(parts) == 2:
                     m_part = parts[0].strip() + "월"
                     d_part = parts[1].strip()
-                    
-                    # 월과 일이 모두 페이지 소스에 포함되어 있는지 확인
                     date_found = (m_part in page_source) and (d_part in page_source)
                 else:
                     date_found = date_str in page_source
@@ -95,11 +91,15 @@ def check_specific_boats():
                 if date_found:
                     for boat in target_boats:
                         if boat in page_source:
+                            # 📌 "예약하기"가 명확히 존재할 때만 진짜 빈자리로 인정
                             if "예약하기" in page_source:
-                                msg = f"🎉 **[원하던 배 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
+                                msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
                                 send_telegram_message(msg)
+                                print(f" - {date_str} [{boat}]: 예약하기 포착!")
+                            elif "대기하기" in page_source:
+                                print(f" - {date_str} [{boat}]: 대기하기 상태 (빈자리 아님)")
                             else:
-                                print(f" - {date_str} [{boat}]: 날짜는 있으나 마감 상태")
+                                print(f" - {date_str} [{boat}]: 빈칸 또는 마감 상태")
                         else:
                             print(f" - {date_str}: '{boat}' 정보 없음")
                 else:
