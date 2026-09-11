@@ -21,21 +21,14 @@ def send_telegram_message(text):
     }
     requests.post(url, json=payload)
 
-def remove_popups_aggressively(driver):
+def remove_popups(driver):
     script = """
     try {
-        var selectors = [
-            '.popup', '.layer_popup', '#popup', 'div[id*="popup"]', 
-            '.modal', '.layer', '.dimmed', '.overlay', 
-            'div[class*="popup"]', 'div[class*="modal"]', 'div[class*="layer"]'
-        ];
+        var selectors = ['.popup', '.layer_popup', '#popup', 'div[id*="popup"]', '.modal', '.layer', '.dimmed', '.overlay'];
         selectors.forEach(function(sel) {
-            document.querySelectorAll(sel).forEach(function(el) {
-                el.remove();
-            });
+            document.querySelectorAll(sel).forEach(function(el) { el.remove(); });
         });
         document.body.style.overflow = 'auto';
-        document.documentElement.style.overflow = 'auto';
     } catch(e) {}
     """
     try:
@@ -63,7 +56,6 @@ def check_specific_boats():
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=options)
-    # 📌 페이지 로딩 타임아웃 제한 제거 (무한 대기 방지를 위해 별도 제어)
 
     try:
         for site in sites:
@@ -76,16 +68,14 @@ def check_specific_boats():
             try:
                 driver.get(url)
             except Exception:
-                print(f"⚠️ {site_name} 로딩 지연 발생 (콘텐츠 수집 시도)")
+                print(f"⚠️ {site_name} 로딩 지연 (진행)")
 
-            # 페이지가 완전히 렌더링되도록 5초 대기
             time.sleep(5)
-            remove_popups_aggressively(driver)
-
-            driver.execute_script("window.scrollTo(0, 600);")
+            remove_popups(driver)
+            driver.execute_script("window.scrollTo(0, 700);")
             time.sleep(2)
 
-            # 월 선택 버튼(10월 등) 클릭 시도
+            # 월 선택 버튼 클릭 시도 (10월, 9월 등)
             try:
                 month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
                 if month_btns:
@@ -94,17 +84,13 @@ def check_specific_boats():
             except Exception:
                 pass
 
-            # 📌 안정적인 요소 수집을 위해 표, 리스트, 박스 구조 모두 포함
-            blocks = driver.find_elements(By.XPATH, "//tr | //li | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list') or contains(@class, 'row') or contains(@class, 'ship') or contains(@class, 'table')]")
+            # 각 배나 일정별로 격리된 컨테이너 블록 수집
+            blocks = driver.find_elements(By.XPATH, "//tr | //li | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list') or contains(@class, 'row') or contains(@class, 'ship')]")
 
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
-                if len(parts) == 2:
-                    m_val = parts[0].strip()
-                    d_val = parts[1].strip()
-                else:
-                    m_val = ""
-                    d_val = ""
+                m_val = parts[0].strip() if len(parts) == 2 else ""
+                d_val = parts[1].strip() if len(parts) == 2 else ""
 
                 for boat in target_boats:
                     found_real_slot = False
@@ -112,17 +98,17 @@ def check_specific_boats():
 
                     for block in blocks:
                         try:
-                            block_text = block.text
-                            # 해당 블록에 배 이름과 날짜가 동시에 포함되어 있는지 확인
-                            date_matched = (date_str in block_text) or (m_val and d_val and m_val in block_text and d_val in block_text)
+                            text = block.text
+                            # 1. 블록 안에 배 이름과 날짜가 동시에 포함되어 있는지 확인
+                            has_date = (date_str in text) or (m_val and d_val and m_val in text and d_val in text)
                             
-                            if date_matched and boat in block_text:
-                                # 대기, 마감, 완료 키워드가 있으면 확실히 제외
-                                if any(kw in block_text for kw in ["대기하기", "예약마감", "마감", "예약완료", "예약 완료", "매진"]):
-                                    status_msg = "마감 또는 대기 상태"
+                            if has_date and boat in text:
+                                # 2. 마감, 완료, 대기 문구가 있으면 확실히 제외
+                                if any(kw in text for kw in ["대기하기", "예약마감", "마감", "예약완료", "예약 완료", "매진"]):
+                                    status_msg = "마감/대기 상태"
                                     break
-                                # 예약 가능 문구가 명확히 있을 때만 빈자리 인정
-                                elif "예약하기" in block_text or "바로예약" in block_text:
+                                # 3. 명확하게 예약 가능한 버튼이 있을 때만 인정
+                                elif "예약하기" in text or "바로예약" in text:
                                     found_real_slot = True
                                     status_msg = "예약 가능"
                                     break
@@ -132,7 +118,7 @@ def check_specific_boats():
                     if found_real_slot:
                         msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
                         send_telegram_message(msg)
-                        print(f" - {date_str} [{boat}]: 예약 가능 포착! (알람 발송)")
+                        print(f" - {date_str} [{boat}]: 예약 가능! (알림 발송)")
                     else:
                         print(f" - {date_str} [{boat}]: {status_msg}")
 
@@ -142,7 +128,7 @@ def check_specific_boats():
 
     except Exception as e:
         print(f"오류 발생: {e}")
-        send_telegram_message(f"⚠️ [오류 발생] 낚시배 확인 중 에러: {e}")
+        send_telegram_message(f"⚠️ [오류 발생] 에러: {e}")
     
     finally:
         driver.quit()
