@@ -3,7 +3,6 @@ import time
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -13,11 +12,18 @@ def send_telegram_message(text):
         print(f"[알림] {text}")
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text})
+    
+    # 파란색 링크가 예쁘게 눌리도록 마크다운(Markdown) 형식 적용
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID, 
+        "text": text,
+        "parse_mode": "Markdown"
+    }
+    requests.post(url, json=payload)
 
 def check_zeus_seats():
     options = Options()
-    options.add_argument("--headless")  # 화면 없이 백그라운드 실행
+    options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
@@ -25,32 +31,27 @@ def check_zeus_seats():
     driver = webdriver.Chrome(options=options)
     
     try:
-        # 1. 제우스호 예약 페이지 접속
-        driver.get("https://www.ochzeus.com/index.php?mid=bk")
+        target_url = "https://www.ochzeus.com/index.php?mid=bk"
+        driver.get(target_url)
         time.sleep(3)
 
-        # 2. 10월과 2일 버튼 클릭 (사이트 구조에 따라 수정 필요할 수 있음)
-        # 예시: 10월 버튼이나 달력 날짜 '2'를 찾는 코드
-        # (실제 사이트 버튼 속성에 맞춰 클릭 명령 수행)
-        
-        # 임시로 페이지 전체 텍스트에서 '10월'과 '2일' 상태 확인
         page_source = driver.page_source
         
         if "10월" in page_source and "2일" in page_source:
-            # '예약하기' 또는 '마감' 버튼 상태 확인
             if "예약하기" in page_source:
-                msg = "[대박] 오천항 제우스호 10월 2일 빈자리(예약 가능)가 포착되었습니다!"
+                # [링크 이름](주소) 형식으로 넣으면 텔레그램에서 누를 수 있는 파란색 링크가 돼요!
+                msg = f"🎉 **[대박! 빈자리 발견]**\n\n오천항 제우스호 10월 2일 예약 가능 상태 포착!\n👉 [여기서 바로 예약하기]({target_url})"
             else:
-                msg = "[확인] 10월 2일 날짜는 보이지만 현재 '예약마감' 상태이거나 빈자리가 없습니다."
+                msg = f"🔍 **[예약 현황 확인]**\n\n10월 2일 날짜는 있지만 현재 예약 마감 상태입니다.\n🔗 [페이지 확인하기]({target_url})"
         else:
-            msg = "[확인] 아직 10월 2일 예약 창이 오픈되지 않았거나 정보를 찾을 수 없습니다."
+            msg = f"⏳ **[정보 대기중]**\n\n아직 10월 2일 정보가 없거나 확인이 필요합니다.\n🔗 [사이트 직접 가보기]({target_url})"
 
         send_telegram_message(msg)
-        print(msg)
+        print("텔레그램 알림 전송 완료!")
 
     except Exception as e:
         print(f"오류 발생: {e}")
-        send_telegram_message(f"[오류] 낚시배 확인 중 에러 발생: {e}")
+        send_telegram_message(f"⚠️ [오류 발생] 낚시배 확인 중 에러가 났어요: {e}")
     
     finally:
         driver.quit()
