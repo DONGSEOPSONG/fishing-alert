@@ -4,6 +4,9 @@ import json
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -19,6 +22,32 @@ def send_telegram_message(text):
         "parse_mode": "Markdown"
     }
     requests.post(url, json=payload)
+
+def close_popups(driver):
+    """사이트 접속 시 뜨는 팝업창을 자동으로 닫는 함수"""
+    try:
+        # 흔히 쓰이는 팝업 닫기 버튼들 (오늘 하루 그만 보기, 닫기 등)
+        close_selectors = [
+            "button.close", 
+            ".pop_close", 
+            "input[value*='닫기']", 
+            "a.close",
+            ".popup-close",
+            "button:contains('닫기')"
+        ]
+        
+        # 팝업이 뜰 시간을 잠깐 기다림
+        time.sleep(1)
+        
+        # 자바스크립트로 화면에 보이는 팝업 요소들을 강제로 숨기거나 닫기 버튼 클릭 시도
+        driver.execute_script("""
+            var popups = document.querySelectorAll('.popup, .layer_popup, #popup, div[id*="popup"]');
+            popups.forEach(function(popup) {
+                popup.style.display = 'none';
+            });
+        """)
+    except Exception:
+        pass
 
 def check_specific_boats():
     if not os.path.exists("config.json"):
@@ -48,6 +77,9 @@ def check_specific_boats():
             print(f"접속 중: {site_name}")
             driver.get(url)
             time.sleep(3)
+
+            # 접속하자마자 팝업창 닫기 실행!
+            close_popups(driver)
 
             page_source = driver.page_source
 
