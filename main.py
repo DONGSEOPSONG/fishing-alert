@@ -5,8 +5,6 @@ import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -23,17 +21,6 @@ def send_telegram_message(text):
     }
     requests.post(url, json=payload)
 
-def close_popups(driver):
-    try:
-        driver.execute_script("""
-            var popups = document.querySelectorAll('.popup, .layer_popup, #popup, div[id*="popup"]');
-            popups.forEach(function(popup) {
-                popup.style.display = 'none';
-            });
-        """)
-    except Exception:
-        pass
-
 def check_specific_boats():
     if not os.path.exists("config.json"):
         print("config.json 파일이 없습니다.")
@@ -49,9 +36,15 @@ def check_specific_boats():
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
+    
+    # 봇 감지 우회 설정
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=options)
+    # 전체 페이지가 다 안 떠도 5초가 지나면 무조건 다음으로 진행
+    driver.set_page_load_timeout(5)
 
     try:
         for site in sites:
@@ -63,26 +56,10 @@ def check_specific_boats():
             
             try:
                 driver.get(url)
-                # 📌 페이지 본문이 나타날 때까지 최대 10초 대기
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.TAG_NAME, "body"))
-                )
             except Exception:
-                print(f"⚠️ {site_name} 로딩 지연 발생")
+                print(f"⚠️ {site_name} 로딩 시간 초과 (수집 가능한 소스로 진행)")
 
-            # 팝업 닫고 자바스크립트가 데이터를 완전히 그릴 수 있도록 4초 대기
-            time.sleep(4)
-            close_popups(driver)
-
-            # 월 선택 버튼 클릭 시도
-            try:
-                month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
-                if month_btns:
-                    month_btns[0].click()
-                    time.sleep(3) # 클릭 후 달력 로딩 대기
-                    print(f" -> {site_name} 월 버튼 클릭 완료")
-            except Exception:
-                pass
+            time.sleep(2)
 
             page_source = driver.page_source
 
@@ -111,7 +88,7 @@ def check_specific_boats():
                 else:
                     print(f" - {date_str}: 날짜 정보 없음")
 
-                time.sleep(0.5)
+            time.sleep(1)
 
         print("모든 검사 완료!")
 
