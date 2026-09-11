@@ -56,6 +56,7 @@ def check_specific_boats():
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(15)
 
     try:
         for site in sites:
@@ -70,67 +71,46 @@ def check_specific_boats():
             except Exception:
                 print(f"⚠️ {site_name} 로딩 지연 (진행)")
 
-            time.sleep(5)
-            remove_popups(driver)
-            driver.execute_script("window.scrollTo(0, 300);")
             time.sleep(2)
+            remove_popups(driver)
 
             for date_str in target_dates:
-                # 예: "11월 16일" 또는 연도가 포함된 경우 분리
                 parts = date_str.replace("일", "").split("월")
                 if len(parts) == 2:
-                    m_val = parts[0].strip() # "11"
-                    d_val = parts[1].strip() # "16"
+                    m_val = parts[0].strip()
+                    d_val = parts[1].strip()
                 else:
                     continue
 
-                # 📌 1단계: 연도 버튼(예: 2026년)이 필요하면 맞추고, 상단 월 버튼 정확히 타격
-                try:
-                    # 현재 연도(예: 2026) 맞추기 시도
-                    year_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '2026')]")
-                    for y_btn in year_btns:
-                        if len(y_btn.text.strip()) <= 6:
-                            driver.execute_script("arguments[0].click();", y_btn)
-                            time.sleep(1)
-                            break
-                except Exception:
-                    pass
-
-                month_clicked = False
+                # 1단계: 월 선택
                 try:
                     month_elements = driver.find_elements(By.XPATH, f"//*[text()='{m_val}월' or text()='{m_val} 월']")
                     for el in month_elements:
                         if len(el.text.strip()) <= 5:
                             driver.execute_script("arguments[0].click();", el)
-                            time.sleep(2)
-                            month_clicked = True
+                            time.sleep(1)
                             break
                 except Exception:
                     pass
 
-                if not month_clicked:
-                    print(f" - {date_str} [{site_name}]: 월 선택 버튼 클릭 실패")
-                    continue
-
-                # 📌 2단계: 해당 일자 숫자 버튼 정확히 타격 (날짜 바에 있는 일자 셀렉트)
+                # 2단계: 일자 선택
                 clicked_date = False
                 try:
-                    # 달력 바 내부의 일자 숫자들만 정밀 탐색
                     day_elements = driver.find_elements(By.XPATH, f"//a[text()='{d_val}'] | //span[text()='{d_val}'] | //td[text()='{d_val}'] | //div[text()='{d_val}']")
                     for el in day_elements:
                         if len(el.text.strip()) <= 2:
                             driver.execute_script("arguments[0].click();", el)
-                            time.sleep(3)
+                            time.sleep(1.5)
                             clicked_date = True
                             break
                 except Exception:
                     pass
 
                 if not clicked_date:
-                    print(f" - {date_str} [{site_name}]: 해당 일자 버튼 클릭 실패")
+                    print(f" - {date_str} [{site_name}]: 일자 클릭 실패")
                     continue
 
-                # 📌 3단계: 표의 각 행(<tr>)을 수집하여 상태 정밀 분석
+                # 3단계: 행 데이터 분석
                 rows = driver.find_elements(By.TAG_NAME, "tr")
 
                 for boat in target_boats:
@@ -141,12 +121,10 @@ def check_specific_boats():
                         try:
                             row_text = row.text
                             if boat in row_text:
-                                # 마감, 완료, 대기 키워드가 있으면 차단
                                 if any(kw in row_text for kw in ["예약완료", "예약 완료", "대기하기", "예약마감", "마감", "매진"]):
                                     status_msg = "마감 / 예약완료 상태"
                                     break
                                 
-                                # 예약 가능 상태 확인 ("예약하기", "바로예약", 또는 잔여석 "명")
                                 if "예약하기" in row_text or "바로예약" in row_text or ("명" in row_text and "입금자" not in row_text):
                                     found_real_slot = True
                                     status_msg = "예약 가능"
@@ -161,7 +139,7 @@ def check_specific_boats():
                     else:
                         print(f" - {date_str} [{boat}]: {status_msg}")
 
-                time.sleep(0.3)
+                time.sleep(0.1)
 
         print("\n모든 검사 완료!")
 
