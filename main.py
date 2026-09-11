@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -12,8 +13,6 @@ def send_telegram_message(text):
         print(f"[알림] {text}")
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    
-    # 파란색 링크가 예쁘게 눌리도록 마크다운(Markdown) 형식 적용
     payload = {
         "chat_id": TELEGRAM_CHAT_ID, 
         "text": text,
@@ -21,7 +20,17 @@ def send_telegram_message(text):
     }
     requests.post(url, json=payload)
 
-def check_zeus_seats():
+def check_all_combinations():
+    if not os.path.exists("config.json"):
+        print("config.json 파일이 없습니다.")
+        return
+
+    with open("config.json", "r", encoding="utf-8") as f:
+        config = json.load(f)
+
+    sites = config.get("sites", [])
+    target_dates = config.get("target_dates", [])
+
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
@@ -29,32 +38,42 @@ def check_zeus_seats():
     options.add_argument("--window-size=1920,1080")
 
     driver = webdriver.Chrome(options=options)
-    
+
     try:
-        target_url = "https://www.ochzeus.com/index.php?mid=bk"
-        driver.get(target_url)
-        time.sleep(3)
+        # 배 사이트별로 접속
+        for site in sites:
+            name = site["name"]
+            url = site["url"]
 
-        page_source = driver.page_source
-        
-        if "10월" in page_source and "2일" in page_source:
-            if "예약하기" in page_source:
-                # [링크 이름](주소) 형식으로 넣으면 텔레그램에서 누를 수 있는 파란색 링크가 돼요!
-                msg = f"🎉 **[대박! 빈자리 발견]**\n\n오천항 제우스호 10월 2일 예약 가능 상태 포착!\n👉 [여기서 바로 예약하기]({target_url})"
-            else:
-                msg = f"🔍 **[예약 현황 확인]**\n\n10월 2일 날짜는 있지만 현재 예약 마감 상태입니다.\n🔗 [페이지 확인하기]({target_url})"
-        else:
-            msg = f"⏳ **[정보 대기중]**\n\n아직 10월 2일 정보가 없거나 확인이 필요합니다.\n🔗 [사이트 직접 가보기]({target_url})"
+            print(f"접속 중: {name}")
+            driver.get(url)
+            time.sleep(3)
 
-        send_telegram_message(msg)
-        print("텔레그램 알림 전송 완료!")
+            page_source = driver.page_source
+
+            # 등록된 모든 날짜를 각각 검사
+            for date in target_dates:
+                print(f" - 검사 날짜: {date}")
+                
+                if date in page_source:
+                    if "예약하기" in page_source:
+                        msg = f"🎉 **[대박! 빈자리 발견]**\n\n**{name}**\n📅 **{date}** 예약 가능 상태 포착!\n👉 [바로 예약하기]({url})"
+                        send_telegram_message(msg)
+                    else:
+                        print(f"   -> {date}: 날짜는 있으나 마감 상태")
+                else:
+                    print(f"   -> {date}: 정보 없음")
+
+                time.sleep(1)
+
+        print("모든 검사 완료!")
 
     except Exception as e:
         print(f"오류 발생: {e}")
-        send_telegram_message(f"⚠️ [오류 발생] 낚시배 확인 중 에러가 났어요: {e}")
+        send_telegram_message(f"⚠️ [오류 발생] 낚시배 확인 중 에러: {e}")
     
     finally:
         driver.quit()
 
 if __name__ == "__main__":
-    check_zeus_seats()
+    check_all_combinations()
