@@ -63,7 +63,8 @@ def check_specific_boats():
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(15)
+    # 📌 타임아웃을 아주 짧게 잡아 로딩이 오래 걸려도 즉시 소스를 가져오도록 변경
+    driver.set_page_load_timeout(8)
 
     try:
         for site in sites:
@@ -76,12 +77,13 @@ def check_specific_boats():
             try:
                 driver.get(url)
             except Exception:
-                print(f"⚠️ {site_name} 페이지 로딩 타임아웃 발생 (계속 진행)")
+                print(f"⚠️ {site_name} 로딩 중단 구간 도달 (수집 모드 진입)")
 
-            time.sleep(4)
+            time.sleep(3)
             remove_popups_aggressively(driver)
 
-            driver.execute_script("window.scrollTo(0, 500);")
+            # 스크롤을 내려서 데이터 렌더링 유도
+            driver.execute_script("window.scrollTo(0, 600);")
             time.sleep(2)
 
             try:
@@ -92,9 +94,8 @@ def check_specific_boats():
             except Exception:
                 pass
 
-            # 📌 핵심 수정: 각 날짜/일정별 행(Row) 또는 카드 단위의 컨테이너를 정밀하게 수집
-            # 한 화면에 여러 배가 섞여 있어도 행 단위로 격리하여 다른 배의 상태와 섞이지 않도록 함
-            row_elements = driver.find_elements(By.XPATH, "//tr | //li | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list') or contains(@class, 'row')]")
+            # 각 일정 항목(행, 카드 등)을 세밀하게 수집
+            row_elements = driver.find_elements(By.XPATH, "//tr | //li | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list') or contains(@class, 'row') or contains(@class, 'col')]")
 
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
@@ -112,15 +113,15 @@ def check_specific_boats():
                     for el in row_elements:
                         try:
                             text = el.text
-                            # 1단계: 해당 영역(행)에 지정한 날짜와 배 이름이 동시에 들어있는지 확인
+                            # 해당 영역에 날짜와 배 이름이 동시에 존재하는지 검사
                             date_matched = (date_str in text) or (m_val and d_val and m_val in text and d_val in text)
                             
                             if date_matched and boat in text:
-                                # 2단계: 대기하기나 예약마감이 포함되어 있으면 무조건 불가능 처리
+                                # 대기하기나 마감 관련 문구가 포함되어 있다면 확실하게 제외
                                 if "대기하기" in text or "예약마감" in text or "마감" in text:
                                     status_msg = "대기 또는 마감 상태"
                                     break
-                                # 3단계: 명확하게 예약 가능 문구가 있을 때만 인정
+                                # 예약 가능 문구가 정확히 있을 때만 빈자리 인정
                                 elif "예약하기" in text or "바로예약" in text:
                                     found_real_slot = True
                                     status_msg = "예약 가능"
