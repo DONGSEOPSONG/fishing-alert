@@ -2,15 +2,15 @@ import os
 import requests
 from bs4 import BeautifulSoup
 
-# 내가 감시하고 싶은 사이트 목록
+# 오천항 제우스호 예약 페이지
 my_favorite_sites = [
     {
-        "name": "낚시배 사이트 이름",
-        "url": "https://www.ochzeus.com" 
+        "name": "오천항 제우스호",
+        "url": "https://www.ochzeus.com/index.php?mid=bk" 
     }
 ]
 
-target_date = "10월 2일"  # 찾고 싶은 날짜
+target_date = "10월 2일"  # 확인하고 싶은 날짜 (사이트 표기에 따라 "10/2" 등으로 변경 가능)
 
 def send_telegram_message(text):
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -23,20 +23,25 @@ def send_telegram_message(text):
 def check_seats():
     for site in my_favorite_sites:
         try:
-            response = requests.get(site["url"], headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+            response = requests.get(site["url"], headers=headers, timeout=10)
             if response.status_code != 200:
+                print(f"접속 실패: {site['name']}")
                 continue
             
             soup = BeautifulSoup(response.text, "html.parser")
             page_text = soup.get_text()
 
-            # 사이트 글자에 내가 찾는 날짜가 포함되어 있는지 확인
+            # 지정한 날짜가 페이지 내에 있는지 확인
             if target_date in page_text:
-                msg = f"[빈자리 알림] {site['name']}에 {target_date} 예약 페이지가 열렸거나 자리가 있습니다!\n확인하기: {site['url']}"
+                msg = f"[예약 페이지 감지] {site['name']}에서 '{target_date}' 관련 글자가 확인되었습니다!\n링크: {site['url']}"
                 send_telegram_message(msg)
                 print(msg)
             else:
-                print(f"{target_date} 발견 안 됨: {site['name']}")
+                print(f"'{target_date}' 정보 없음: {site['name']}")
+                
         except Exception as e:
             print(f"오류 발생: {e}")
 
