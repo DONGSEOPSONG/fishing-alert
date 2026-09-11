@@ -83,7 +83,6 @@ def check_specific_boats():
                 else:
                     continue
 
-                # 1단계: 월 버튼 클릭
                 try:
                     month_elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{m_val}')]")
                     for el in month_elements:
@@ -94,7 +93,6 @@ def check_specific_boats():
                 except Exception:
                     pass
 
-                # 2단계: 날짜(일자) 버튼 클릭
                 try:
                     day_elements = driver.find_elements(By.XPATH, f"//*[text()='{d_val}' or text()='{d_val}일']")
                     for el in day_elements:
@@ -105,7 +103,6 @@ def check_specific_boats():
                 except Exception:
                     pass
 
-                # 3단계: 표의 각 행(<tr>)을 수집하여 배별 상태 정밀 분석
                 rows = driver.find_elements(By.TAG_NAME, "tr")
 
                 for boat in target_boats:
@@ -115,14 +112,14 @@ def check_specific_boats():
                     for row in rows:
                         try:
                             row_text = row.text
-                            # 해당 행에 찾으려는 배 이름이 포함되어 있는지 확인
                             if boat in row_text:
-                                # 예약완료나 마감, 대기 키워드가 행에 있으면 마감 처리
+                                # 📌 1단계: 마감/완료/대기 키워드가 포함되어 있다면 무조건 차단 (최우선 검사)
                                 if any(kw in row_text for kw in ["예약완료", "예약 완료", "대기하기", "예약마감", "마감", "매진"]):
                                     status_msg = "마감 / 예약완료 상태"
                                     break
-                                # "예약하기", "바로예약", 혹은 잔여석 숫자가 표시된 경우(예: "20명") 빈자리로 인정
-                                elif "예약하기" in row_text or "바로예약" in row_text or "명" in row_text:
+                                
+                                # 📌 2단계: 마감 키워드가 전혀 없을 때만 예약 가능 여부 판별
+                                if "예약하기" in row_text or "바로예약" in row_text or ("명" in row_text and "입금자" not in row_text):
                                     found_real_slot = True
                                     status_msg = "예약 가능"
                                     break
