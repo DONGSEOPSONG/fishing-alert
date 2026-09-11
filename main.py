@@ -4,9 +4,6 @@ import json
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -24,22 +21,7 @@ def send_telegram_message(text):
     requests.post(url, json=payload)
 
 def close_popups(driver):
-    """사이트 접속 시 뜨는 팝업창을 자동으로 닫는 함수"""
     try:
-        # 흔히 쓰이는 팝업 닫기 버튼들 (오늘 하루 그만 보기, 닫기 등)
-        close_selectors = [
-            "button.close", 
-            ".pop_close", 
-            "input[value*='닫기']", 
-            "a.close",
-            ".popup-close",
-            "button:contains('닫기')"
-        ]
-        
-        # 팝업이 뜰 시간을 잠깐 기다림
-        time.sleep(1)
-        
-        # 자바스크립트로 화면에 보이는 팝업 요소들을 강제로 숨기거나 닫기 버튼 클릭 시도
         driver.execute_script("""
             var popups = document.querySelectorAll('.popup, .layer_popup, #popup, div[id*="popup"]');
             popups.forEach(function(popup) {
@@ -67,6 +49,9 @@ def check_specific_boats():
     options.add_argument("--window-size=1920,1080")
 
     driver = webdriver.Chrome(options=options)
+    
+    # 📌 페이지 로딩 최대 대기 시간을 10초로 제한 (무한 대기 방지)
+    driver.set_page_load_timeout(10)
 
     try:
         for site in sites:
@@ -75,10 +60,13 @@ def check_specific_boats():
             target_boats = site.get("target_boats", [])
 
             print(f"접속 중: {site_name}")
-            driver.get(url)
-            time.sleep(3)
+            
+            try:
+                driver.get(url)
+            except Exception:
+                print(f"⚠️ {site_name} 로딩 시간이 길어져서 강제로 다음 단계를 진행합니다.")
 
-            # 접속하자마자 팝업창 닫기 실행!
+            time.sleep(2)
             close_popups(driver)
 
             page_source = driver.page_source
@@ -91,13 +79,13 @@ def check_specific_boats():
                                 msg = f"🎉 **[원하던 배 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date}**\n👉 [바로 예약하기]({url})"
                                 send_telegram_message(msg)
                             else:
-                                print(f" - {date} [{boat}]: 날짜와 배 이름은 있으나 마감 상태")
+                                print(f" - {date} [{boat}]: 마감 상태")
                         else:
-                            print(f" - {date}: 해당 페이지에 '{boat}' 정보 없음")
+                            print(f" - {date}: '{boat}' 정보 없음")
                 else:
                     print(f" - {date}: 날짜 정보 없음")
 
-                time.sleep(1)
+                time.sleep(0.5)
 
         print("모든 검사 완료!")
 
