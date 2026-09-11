@@ -63,7 +63,7 @@ def check_specific_boats():
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(10)
+    # 📌 페이지 로딩 타임아웃 제한 제거 (무한 대기 방지를 위해 별도 제어)
 
     try:
         for site in sites:
@@ -76,14 +76,16 @@ def check_specific_boats():
             try:
                 driver.get(url)
             except Exception:
-                print(f"⚠️ {site_name} 로딩 시간 초과 (수집 모드 진입)")
+                print(f"⚠️ {site_name} 로딩 지연 발생 (콘텐츠 수집 시도)")
 
-            time.sleep(3)
+            # 페이지가 완전히 렌더링되도록 5초 대기
+            time.sleep(5)
             remove_popups_aggressively(driver)
 
-            driver.execute_script("window.scrollTo(0, 500);")
+            driver.execute_script("window.scrollTo(0, 600);")
             time.sleep(2)
 
+            # 월 선택 버튼(10월 등) 클릭 시도
             try:
                 month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
                 if month_btns:
@@ -92,57 +94,47 @@ def check_specific_boats():
             except Exception:
                 pass
 
-            # 📌 전체 페이지 소스 자체를 가져와서 배 이름과 날짜, 예약 가능 여부를 유연하게 통합 검사
-            page_source = driver.page_source
+            # 📌 안정적인 요소 수집을 위해 표, 리스트, 박스 구조 모두 포함
+            blocks = driver.find_elements(By.XPATH, "//tr | //li | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list') or contains(@class, 'row') or contains(@class, 'ship') or contains(@class, 'table')]")
 
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
                 if len(parts) == 2:
-                    m_val = parts[0].strip() + "월"
+                    m_val = parts[0].strip()
                     d_val = parts[1].strip()
                 else:
                     m_val = ""
                     d_val = ""
 
                 for boat in target_boats:
-                    # 1단계: 날짜와 배 이름이 페이지 내에 모두 존재하는지 확인
-                    date_found = (date_str in page_source) or (m_val and d_val and m_val in page_source and d_val in page_source)
-                    
-                    if date_found and boat in page_source:
-                        # 2단계: 해당 배가 마감/완료/대기 상태인지 확인하기 위해, 텍스트 상에서 배 이름 주변이나 전체 소스 상태 파악
-                        # (단순 무식하게 전체 소스에 "예약하기"가 있다고 돌리면 다른 배에 낚이므로, 
-                        #  배 이름 근처에 "예약하기" 또는 "바로예약"이 명확히 살아있는지 체크)
-                        
-                        # 각 배별 고유 블록을 다시 정밀 탐색
-                        blocks = driver.find_elements(By.XPATH, "//tr | //div[contains(@class, 'schedule') or contains(@class, 'item') or contains(@class, 'box') or contains(@class, 'list') or contains(@class, 'row') or contains(@class, 'ship') or contains(@class, 'schedule_box')]")
-                        
-                        found_real_slot = False
-                        status_msg = "마감 또는 대기 상태"
+                    found_real_slot = False
+                    status_msg = "마감 또는 정보 없음"
 
-                        for block in blocks:
-                            try:
-                                b_text = block.text
-                                if boat in b_text:
-                                    d_matched = (date_str in b_text) or (m_val and d_val and m_val in b_text and d_val in b_text)
-                                    if d_matched:
-                                        if any(kw in b_text for kw in ["대기하기", "예약마감", "마감", "예약완료", "예약 완료", "매진"]):
-                                            status_msg = "마감 또는 대기 상태"
-                                            break
-                                        elif "예약하기" in b_text or "바로예약" in b_text:
-                                            found_real_slot = True
-                                            status_msg = "예약 가능"
-                                            break
-                            except Exception:
-                                continue
+                    for block in blocks:
+                        try:
+                            block_text = block.text
+                            # 해당 블록에 배 이름과 날짜가 동시에 포함되어 있는지 확인
+                            date_matched = (date_str in block_text) or (m_val and d_val and m_val in block_text and d_val in block_text)
+                            
+                            if date_matched and boat in block_text:
+                                # 대기, 마감, 완료 키워드가 있으면 확실히 제외
+                                if any(kw in block_text for kw in ["대기하기", "예약마감", "마감", "예약완료", "예약 완료", "매진"]):
+                                    status_msg = "마감 또는 대기 상태"
+                                    break
+                                # 예약 가능 문구가 명확히 있을 때만 빈자리 인정
+                                elif "예약하기" in block_text or "바로예약" in block_text:
+                                    found_real_slot = True
+                                    status_msg = "예약 가능"
+                                    break
+                        except Exception:
+                            continue
 
-                        if found_real_slot:
-                            msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
-                            send_telegram_message(msg)
-                            print(f" - {date_str} [{boat}]: 예약 가능 포착! (알람 발송)")
-                        else:
-                            print(f" - {date_str} [{boat}]: {status_msg}")
+                    if found_real_slot:
+                        msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
+                        send_telegram_message(msg)
+                        print(f" - {date_str} [{boat}]: 예약 가능 포착! (알람 발송)")
                     else:
-                        print(f" - {date_str} [{boat}]: 날짜 또는 배 정보 없음")
+                        print(f" - {date_str} [{boat}]: {status_msg}")
 
                 time.sleep(0.2)
 
