@@ -67,14 +67,20 @@ def check_specific_boats():
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
                 if len(parts) == 2:
-                    m_val = parts[0].strip()
-                    d_val = parts[1].strip()
+                    m_val = parts[0].strip() # "11"
+                    d_val = parts[1].strip() # "16"
                 else:
                     continue
 
-                # 📌 날짜 파라미터 다이렉트 결합 URL 생성
-                base_clean = base_url.split("?")[0]
-                target_url = f"{base_clean}?mid=bk&year=2026&month={m_val}&day={d_val}&mode=list&won=1&PA_N_UID=0&sel=day"
+                # 📌 사이트 플랫폼별 맞춤형 다이렉트 URL 생성
+                if "sunsang24.com" in base_url:
+                    # 선상24 계열 URL 구조 (예: .../schedule_fleet/202611)
+                    base_clean = base_url.rstrip("/")
+                    target_url = f"{base_clean}/2026{m_val.zfill(2)}"
+                else:
+                    # 일반 PHP 예약 시스템 URL 구조 (제우스호, 야야, 신규 선단 등)
+                    base_clean = base_url.split("?")[0]
+                    target_url = f"{base_clean}?mid=bk&year=2026&month={m_val}&day={d_val}&mode=list&won=1&PA_N_UID=0&sel=day"
 
                 print(f"\n접속 중 [{site_name}] - {date_str}")
                 
@@ -85,6 +91,18 @@ def check_specific_boats():
 
                 time.sleep(2)
                 remove_popups(driver)
+
+                # 선상24 계열의 경우 해당 월 페이지 진입 후 특정 일자 요소가 있다면 클릭 보완 가능
+                if "sunsang24.com" in base_url:
+                    try:
+                        day_elements = driver.find_elements(By.XPATH, f"//*[text()='{d_val}' or contains(text(), '{d_val}일')]")
+                        for el in day_elements:
+                            if len(el.text.strip()) <= 3:
+                                driver.execute_script("arguments[0].click();", el)
+                                time.sleep(1.5)
+                                break
+                    except Exception:
+                        pass
 
                 # 📌 행 데이터 분석
                 rows = driver.find_elements(By.TAG_NAME, "tr")
