@@ -68,40 +68,42 @@ def check_specific_boats():
             time.sleep(3)
             close_popups(driver)
 
-            # 📌 사이트별 맞춤형 날짜/월 선택 클릭 로직
+            # 월 선택 버튼 클릭 시도
             try:
-                if "ochzeus.com" in url or "yayaho.kr" in url:
-                    # 제우스호 및 야야 사이트: 10월 등 월 선택 버튼이나 달력 탭 클릭 시도
-                    month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
-                    if month_btns:
-                        month_btns[0].click()
-                        time.sleep(2)
-                        print(f" -> {site_name} 월(달력) 버튼 클릭 완료")
-                elif "sunsang24.com" in url:
-                    # 선상24 사이트: 상단 월 탭 클릭 시도
-                    month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
-                    if month_btns:
-                        month_btns[0].click()
-                        time.sleep(2)
-                        print(" -> 선상24 월 버튼 클릭 완료")
-            except Exception as e:
-                print(f" -> 버튼 클릭 중 예외 발생 (무시하고 진행): {e}")
+                month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
+                if month_btns:
+                    month_btns[0].click()
+                    time.sleep(2)
+                    print(f" -> {site_name} 월 버튼 클릭 완료")
+            except Exception:
+                pass
 
             page_source = driver.page_source
 
-            for date in target_dates:
-                if date in page_source:
+            for date_str in target_dates:
+                # 예: "10월 2일" -> 월("10월"), 일("2") 분리하여 유연하게 체크
+                parts = date_str.replace("일", "").split("월")
+                if len(parts) == 2:
+                    m_part = parts[0].strip() + "월"
+                    d_part = parts[1].strip()
+                    
+                    # 월과 일이 모두 페이지 소스에 포함되어 있는지 확인
+                    date_found = (m_part in page_source) and (d_part in page_source)
+                else:
+                    date_found = date_str in page_source
+
+                if date_found:
                     for boat in target_boats:
                         if boat in page_source:
                             if "예약하기" in page_source:
-                                msg = f"🎉 **[원하던 배 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date}**\n👉 [바로 예약하기]({url})"
+                                msg = f"🎉 **[원하던 배 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
                                 send_telegram_message(msg)
                             else:
-                                print(f" - {date} [{boat}]: 마감 상태")
+                                print(f" - {date_str} [{boat}]: 날짜는 있으나 마감 상태")
                         else:
-                            print(f" - {date}: '{boat}' 정보 없음")
+                            print(f" - {date_str}: '{boat}' 정보 없음")
                 else:
-                    print(f" - {date}: 날짜 정보 없음")
+                    print(f" - {date_str}: 날짜 정보 없음")
 
                 time.sleep(0.5)
 
