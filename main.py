@@ -77,30 +77,30 @@ def check_specific_boats():
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
                 if len(parts) == 2:
-                    m_val = parts[0].strip()
-                    d_val = parts[1].strip()
+                    m_val = parts[0].strip() # 예: "11"
+                    d_val = parts[1].strip() # 예: "16"
                 else:
                     continue
 
-                # 1단계: 월 선택
+                # 📌 1단계: 상단 월 버튼을 먼저 확실하게 클릭하여 해당 월 달력으로 전환
                 try:
                     month_elements = driver.find_elements(By.XPATH, f"//*[text()='{m_val}월' or text()='{m_val} 월']")
                     for el in month_elements:
                         if len(el.text.strip()) <= 5:
                             driver.execute_script("arguments[0].click();", el)
-                            time.sleep(1)
+                            time.sleep(1.5) # 월 전환 로딩 대기
                             break
                 except Exception:
                     pass
 
-                # 2단계: 일자 선택
+                # 📌 2단계: 전환된 달력에서 해당 일자 숫자 버튼 클릭
                 clicked_date = False
                 try:
                     day_elements = driver.find_elements(By.XPATH, f"//a[text()='{d_val}'] | //span[text()='{d_val}'] | //td[text()='{d_val}'] | //div[text()='{d_val}']")
                     for el in day_elements:
                         if len(el.text.strip()) <= 2:
                             driver.execute_script("arguments[0].click();", el)
-                            time.sleep(1.5)
+                            time.sleep(2) # 일자별 스케줄 로딩 대기
                             clicked_date = True
                             break
                 except Exception:
@@ -110,7 +110,7 @@ def check_specific_boats():
                     print(f" - {date_str} [{site_name}]: 일자 클릭 실패")
                     continue
 
-                # 3단계: 행 데이터 분석
+                # 📌 3단계: 표의 각 행(<tr>)을 수집하여 상태 정밀 분석
                 rows = driver.find_elements(By.TAG_NAME, "tr")
 
                 for boat in target_boats:
