@@ -5,6 +5,8 @@ import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -50,7 +52,6 @@ def check_specific_boats():
     options.add_argument("--window-size=1920,1080")
 
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(10)
 
     try:
         for site in sites:
@@ -62,17 +63,23 @@ def check_specific_boats():
             
             try:
                 driver.get(url)
+                # 📌 페이지 본문이 나타날 때까지 최대 10초 대기
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
             except Exception:
-                print(f"⚠️ {site_name} 로딩 지연으로 진행합니다.")
+                print(f"⚠️ {site_name} 로딩 지연 발생")
 
-            time.sleep(3)
+            # 팝업 닫고 자바스크립트가 데이터를 완전히 그릴 수 있도록 4초 대기
+            time.sleep(4)
             close_popups(driver)
 
+            # 월 선택 버튼 클릭 시도
             try:
                 month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
                 if month_btns:
                     month_btns[0].click()
-                    time.sleep(2)
+                    time.sleep(3) # 클릭 후 달력 로딩 대기
                     print(f" -> {site_name} 월 버튼 클릭 완료")
             except Exception:
                 pass
@@ -91,15 +98,14 @@ def check_specific_boats():
                 if date_found:
                     for boat in target_boats:
                         if boat in page_source:
-                            # 📌 "예약하기"가 명확히 존재할 때만 진짜 빈자리로 인정
                             if "예약하기" in page_source:
                                 msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
                                 send_telegram_message(msg)
                                 print(f" - {date_str} [{boat}]: 예약하기 포착!")
                             elif "대기하기" in page_source:
-                                print(f" - {date_str} [{boat}]: 대기하기 상태 (빈자리 아님)")
+                                print(f" - {date_str} [{boat}]: 대기하기 상태")
                             else:
-                                print(f" - {date_str} [{boat}]: 빈칸 또는 마감 상태")
+                                print(f" - {date_str} [{boat}]: 마감 상태")
                         else:
                             print(f" - {date_str}: '{boat}' 정보 없음")
                 else:
