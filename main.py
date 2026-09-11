@@ -82,39 +82,20 @@ def check_specific_boats():
                 else:
                     continue
 
-                # 📌 1단계: 월 링크 추출 및 직접 이동 (href 또는 onclick 속성 활용)
-                month_moved = False
+                # 📌 1단계: 월 전환 (onclick 속성이나 텍스트를 분석하여 자바스크립트 강제 실행)
                 try:
-                    month_elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{m_val}월')]")
+                    month_elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{m_val}월') or contains(@onclick, '{m_val}')]")
                     for el in month_elements:
                         txt = el.text.strip()
-                        if txt in [f"{m_val}월", f"{m_val} 월", f"0{m_val}월"] or txt == f"{m_val}":
-                            # 부모나 자신이 a 태그인 경우 href 추출 시도
-                            parent = el
-                            for _ in range(2):
-                                try:
-                                    parent = parent.find_element(By.XPATH, "./..")
-                                except:
-                                    break
-                            
-                            href = el.get_attribute("href") or parent.get_attribute("href")
-                            onclick = el.get_attribute("onclick") or parent.get_attribute("onclick")
-
-                            if href and href != "#":
-                                driver.get(href)
-                                time.sleep(2)
-                                month_moved = True
-                                break
-                            elif onclick:
-                                driver.execute_script(onclick)
-                                time.sleep(2)
-                                month_moved = True
-                                break
+                        onclick_attr = el.get_attribute("onclick") or ""
+                        
+                        if txt in [f"{m_val}월", f"{m_val} 월", f"0{m_val}월"] or m_val in onclick_attr:
+                            if onclick_attr:
+                                driver.execute_script(onclick_attr)
                             else:
                                 driver.execute_script("arguments[0].click();", el)
-                                time.sleep(2)
-                                month_moved = True
-                                break
+                            time.sleep(2)
+                            break
                 except Exception:
                     pass
 
