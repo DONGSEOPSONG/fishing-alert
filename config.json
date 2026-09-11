@@ -3,7 +3,7 @@
     {
       "name": "오천항 제우스호",
       "url": "https://www.ochzeus.com/index.php?mid=bk",
-      "target_boats": ["할리호"]
+      "target_boats": ["제우스호", "할리호", "슈퍼스타호"]
     },
     {
       "name": "대천항 야야",
