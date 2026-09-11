@@ -82,25 +82,26 @@ def check_specific_boats():
                 else:
                     continue
 
-                # 📌 1단계: 상단 월 버튼을 먼저 확실하게 클릭하여 해당 월 달력으로 전환
+                # 📌 1단계: 월 전환 (텍스트뿐만 아니라 onclick/href에 월 정보가 포함된 링크까지 광범위 탐색)
                 try:
-                    month_elements = driver.find_elements(By.XPATH, f"//*[text()='{m_val}월' or text()='{m_val} 월']")
+                    month_elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{m_val}월') or contains(@onclick, '{m_val}') or contains(@href, '{m_val}')]")
                     for el in month_elements:
-                        if len(el.text.strip()) <= 5:
+                        txt = el.text.strip()
+                        if txt in [f"{m_val}월", f"{m_val}", f"0{m_val}월"] or ('11' in txt and len(txt) <= 5):
                             driver.execute_script("arguments[0].click();", el)
-                            time.sleep(1.5) # 월 전환 로딩 대기
+                            time.sleep(1.5)
                             break
                 except Exception:
                     pass
 
-                # 📌 2단계: 전환된 달력에서 해당 일자 숫자 버튼 클릭
+                # 📌 2단계: 일자 숫자 버튼 클릭
                 clicked_date = False
                 try:
                     day_elements = driver.find_elements(By.XPATH, f"//a[text()='{d_val}'] | //span[text()='{d_val}'] | //td[text()='{d_val}'] | //div[text()='{d_val}']")
                     for el in day_elements:
                         if len(el.text.strip()) <= 2:
                             driver.execute_script("arguments[0].click();", el)
-                            time.sleep(2) # 일자별 스케줄 로딩 대기
+                            time.sleep(2)
                             clicked_date = True
                             break
                 except Exception:
