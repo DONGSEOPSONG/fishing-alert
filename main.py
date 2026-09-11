@@ -78,31 +78,50 @@ def check_specific_boats():
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
                 if len(parts) == 2:
-                    m_val = parts[0].strip()
-                    d_val = parts[1].strip()
+                    m_val = parts[0].strip() # 예: "11"
+                    d_val = parts[1].strip() # 예: "16"
                 else:
                     continue
 
-                try:
-                    month_elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{m_val}')]")
-                    for el in month_elements:
-                        if "월" in el.text and len(el.text) <= 5:
-                            el.click()
-                            time.sleep(2)
+                # 📌 1단계: 원하는 월(예: 11월) 텍스트가 달력에 보일 때까지 다음 달 버튼을 누르거나 해당 월 버튼 직접 클릭
+                month_found = False
+                for _ in range(3): # 최대 3번까지 다음 달로 넘기며 탐색
+                    try:
+                        month_elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{m_val}월')]")
+                        for el in month_elements:
+                            if len(el.text.strip()) <= 10:
+                                month_found = True
+                                break
+                        if month_found:
                             break
-                except Exception:
-                    pass
+                        
+                        # 월이 안 보이면 다음 달 화살표(> 또는 next) 클릭 시도
+                        next_btns = driver.find_elements(By.XPATH, "//a[contains(@class, 'next') or contains(@class, 'fc-next-button') or contains(text(), '>') or contains(text(), '다음')]")
+                        if next_btns:
+                            next_btns[0].click()
+                            time.sleep(2)
+                    except Exception:
+                        break
 
+                # 📌 2단계: 해당 일자(일) 숫자 버튼 클릭
+                clicked_date = False
                 try:
                     day_elements = driver.find_elements(By.XPATH, f"//*[text()='{d_val}' or text()='{d_val}일']")
                     for el in day_elements:
-                        if el.tag_name.lower() in ['a', 'span', 'li', 'button', 'div'] and len(el.text.strip()) <= 3:
+                        parent_tag = el.tag_name.lower()
+                        if parent_tag in ['a', 'span', 'li', 'button', 'div', 'td'] and len(el.text.strip()) <= 3:
                             el.click()
                             time.sleep(3)
+                            clicked_date = True
                             break
                 except Exception:
                     pass
 
+                if not clicked_date:
+                    print(f" - {date_str} [{site_name}]: 해당 일자 버튼 클릭 실패")
+                    continue
+
+                # 📌 3단계: 표의 각 행(<tr>)을 수집하여 예약 상태 정밀 분석
                 rows = driver.find_elements(By.TAG_NAME, "tr")
 
                 for boat in target_boats:
@@ -113,12 +132,12 @@ def check_specific_boats():
                         try:
                             row_text = row.text
                             if boat in row_text:
-                                # 📌 1단계: 마감/완료/대기 키워드가 포함되어 있다면 무조건 차단 (최우선 검사)
+                                # 예약완료, 마감, 대기 키워드가 있으면 차단
                                 if any(kw in row_text for kw in ["예약완료", "예약 완료", "대기하기", "예약마감", "마감", "매진"]):
                                     status_msg = "마감 / 예약완료 상태"
                                     break
                                 
-                                # 📌 2단계: 마감 키워드가 전혀 없을 때만 예약 가능 여부 판별
+                                # 예약 가능 상태 확인 ("예약하기", "바로예약", 또는 잔여석 "명")
                                 if "예약하기" in row_text or "바로예약" in row_text or ("명" in row_text and "입금자" not in row_text):
                                     found_real_slot = True
                                     status_msg = "예약 가능"
