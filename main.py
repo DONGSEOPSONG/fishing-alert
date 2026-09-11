@@ -4,6 +4,7 @@ import json
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -49,8 +50,6 @@ def check_specific_boats():
     options.add_argument("--window-size=1920,1080")
 
     driver = webdriver.Chrome(options=options)
-    
-    # 📌 페이지 로딩 최대 대기 시간을 10초로 제한 (무한 대기 방지)
     driver.set_page_load_timeout(10)
 
     try:
@@ -64,10 +63,29 @@ def check_specific_boats():
             try:
                 driver.get(url)
             except Exception:
-                print(f"⚠️ {site_name} 로딩 시간이 길어져서 강제로 다음 단계를 진행합니다.")
+                print(f"⚠️ {site_name} 로딩 지연으로 진행합니다.")
 
-            time.sleep(2)
+            time.sleep(3)
             close_popups(driver)
+
+            # 📌 사이트별 맞춤형 날짜/월 선택 클릭 로직
+            try:
+                if "ochzeus.com" in url or "yayaho.kr" in url:
+                    # 제우스호 및 야야 사이트: 10월 등 월 선택 버튼이나 달력 탭 클릭 시도
+                    month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
+                    if month_btns:
+                        month_btns[0].click()
+                        time.sleep(2)
+                        print(f" -> {site_name} 월(달력) 버튼 클릭 완료")
+                elif "sunsang24.com" in url:
+                    # 선상24 사이트: 상단 월 탭 클릭 시도
+                    month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
+                    if month_btns:
+                        month_btns[0].click()
+                        time.sleep(2)
+                        print(" -> 선상24 월 버튼 클릭 완료")
+            except Exception as e:
+                print(f" -> 버튼 클릭 중 예외 발생 (무시하고 진행): {e}")
 
             page_source = driver.page_source
 
