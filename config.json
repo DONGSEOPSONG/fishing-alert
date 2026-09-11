@@ -14,6 +14,11 @@
       "name": "선상24 스페이스호",
       "url": "https://spaceho.sunsang24.com/ship/schedule_fleet",
       "target_boats": ["가가호"]
+    },
+    {
+      "name": "신규 선단",
+      "url": "http://www.mscufishing.com/index.php?mid=bk",
+      "target_boats": ["만석호", "승주호", "헌터호", "골드피싱호", "아산호", "헤르메스호"]
     }
   ],
   "target_dates": [
