@@ -3,11 +3,11 @@
     {
       "name": "오천항 제우스호",
       "url": "https://www.ochzeus.com/index.php?mid=bk"
-    }
+    },
     {
       "name": "대천항 야야",
       "url": "http://www.yayaho.kr/index.php?mid=bk"
-    }
+    },
     {
       "name": "모항 스페이스호",
       "url": "http://space.thefishing.kr/index.php?mid=bk"
@@ -15,12 +15,10 @@
   ],
   "target_dates": [
     "10월 2일",
-    "10월 9일"
-    "10월 8일"
-    "10월 7일"
-    "10월 9일"
-    "10월 8일"
-    "9월 26일"
+    "10월 9일",
+    "10월 8일",
+    "10월 7일",
+    "9월 26일",
     "9월 25일"
   ]
 }
