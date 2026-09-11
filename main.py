@@ -4,7 +4,6 @@ import json
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -20,6 +19,32 @@ def send_telegram_message(text):
         "parse_mode": "Markdown"
     }
     requests.post(url, json=payload)
+
+def remove_popups_aggressively(driver):
+    """화면을 가로막는 모든 팝업, 레이어, 배경 어둠막을 강제로 삭제하는 함수"""
+    script = """
+    try {
+        // 팝업 관련 클래스나 아이디, 레이어들을 찾아 전부 통째로 삭제
+        var selectors = [
+            '.popup', '.layer_popup', '#popup', 'div[id*="popup"]', 
+            '.modal', '.layer', '.dimmed', '.overlay', 
+            'div[class*="popup"]', 'div[class*="modal"]', 'div[class*="layer"]'
+        ];
+        selectors.forEach(function(sel) {
+            document.querySelectorAll(sel).forEach(function(el) {
+                el.remove();
+            });
+        });
+        
+        // body나 html에 걸린 스크롤 잠금 해제
+        document.body.style.overflow = 'auto';
+        document.documentElement.style.overflow = 'auto';
+    } catch(e) {}
+    """
+    try:
+        driver.execute_script(script)
+    except Exception:
+        pass
 
 def check_specific_boats():
     if not os.path.exists("config.json"):
@@ -38,12 +63,9 @@ def check_specific_boats():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
-    
-    # 봇 감지 우회 설정
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=options)
-    # 전체 페이지가 다 안 떠도 5초가 지나면 무조건 다음으로 진행
     driver.set_page_load_timeout(5)
 
     try:
@@ -60,6 +82,9 @@ def check_specific_boats():
                 print(f"⚠️ {site_name} 로딩 시간 초과 (수집 가능한 소스로 진행)")
 
             time.sleep(2)
+            
+            # 📌 접속하자마자 방해되는 팝업창들을 완전히 날려버림
+            remove_popups_aggressively(driver)
 
             page_source = driver.page_source
 
