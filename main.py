@@ -4,6 +4,7 @@ import json
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -21,10 +22,8 @@ def send_telegram_message(text):
     requests.post(url, json=payload)
 
 def remove_popups_aggressively(driver):
-    """화면을 가로막는 모든 팝업, 레이어, 배경 어둠막을 강제로 삭제하는 함수"""
     script = """
     try {
-        // 팝업 관련 클래스나 아이디, 레이어들을 찾아 전부 통째로 삭제
         var selectors = [
             '.popup', '.layer_popup', '#popup', 'div[id*="popup"]', 
             '.modal', '.layer', '.dimmed', '.overlay', 
@@ -35,8 +34,6 @@ def remove_popups_aggressively(driver):
                 el.remove();
             });
         });
-        
-        // body나 html에 걸린 스크롤 잠금 해제
         document.body.style.overflow = 'auto';
         document.documentElement.style.overflow = 'auto';
     } catch(e) {}
@@ -66,7 +63,7 @@ def check_specific_boats():
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(5)
+    driver.set_page_load_timeout(10)
 
     try:
         for site in sites:
@@ -81,39 +78,62 @@ def check_specific_boats():
             except Exception:
                 print(f"⚠️ {site_name} 로딩 시간 초과 (수집 가능한 소스로 진행)")
 
-            time.sleep(2)
-            
-            # 📌 접속하자마자 방해되는 팝업창들을 완전히 날려버림
+            time.sleep(3)
             remove_popups_aggressively(driver)
 
-            page_source = driver.page_source
+            # 월 선택 버튼 클릭 시도
+            try:
+                month_btns = driver.find_elements(By.XPATH, "//*[contains(text(), '10월') or contains(text(), '9월')]")
+                if month_btns:
+                    month_btns[0].click()
+                    time.sleep(2)
+            except Exception:
+                pass
+
+            # 페이지 내의 행(tr) 또는 일정 블록 단위로 요소를 수집하여 정밀 검사
+            elements = driver.find_elements(By.XPATH, "//tr | //li | //div[contains(@class, 'schedule') or contains(@class, 'item')]")
 
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
                 if len(parts) == 2:
-                    m_part = parts[0].strip() + "월"
-                    d_part = parts[1].strip()
-                    date_found = (m_part in page_source) and (d_part in page_source)
+                    m_val = parts[0].strip()
+                    d_val = parts[1].strip()
                 else:
-                    date_found = date_str in page_source
+                    m_val = ""
+                    d_val = ""
 
-                if date_found:
-                    for boat in target_boats:
-                        if boat in page_source:
-                            if "예약하기" in page_source:
-                                msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
-                                send_telegram_message(msg)
-                                print(f" - {date_str} [{boat}]: 예약하기 포착!")
-                            elif "대기하기" in page_source:
-                                print(f" - {date_str} [{boat}]: 대기하기 상태")
-                            else:
-                                print(f" - {date_str} [{boat}]: 마감 상태")
-                        else:
-                            print(f" - {date_str}: '{boat}' 정보 없음")
-                else:
-                    print(f" - {date_str}: 날짜 정보 없음")
+                for boat in target_boats:
+                    found_real_slot = False
+                    status_msg = "마감 또는 정보 없음"
 
-            time.sleep(1)
+                    # 각 일정 블록을 돌면서 날짜와 배 이름이 동시에 포함된 영역을 탐색
+                    for el in elements:
+                        try:
+                            text = el.text
+                            # 해당 블록에 날짜와 배 이름이 모두 들어있는지 확인
+                            date_matched = (date_str in text) or (m_val and d_val and m_val in text and d_val in text)
+                            
+                            if date_matched and boat in text:
+                                if "예약하기" in text:
+                                    found_real_slot = True
+                                    status_msg = "예약하기 가능"
+                                    break
+                                elif "대기하기" in text:
+                                    status_msg = "대기하기 상태"
+                                    break
+                                else:
+                                    status_msg = "마감 상태"
+                        except Exception:
+                            continue
+
+                    if found_real_slot:
+                        msg = f"🎉 **[진짜 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date_str}**\n👉 [바로 예약하기]({url})"
+                        send_telegram_message(msg)
+                        print(f" - {date_str} [{boat}]: 예약하기 포착 (알람 발송)")
+                    else:
+                        print(f" - {date_str} [{boat}]: {status_msg}")
+
+                time.sleep(0.5)
 
         print("모든 검사 완료!")
 
