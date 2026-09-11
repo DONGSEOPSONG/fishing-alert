@@ -20,7 +20,7 @@ def send_telegram_message(text):
     }
     requests.post(url, json=payload)
 
-def check_all_combinations():
+def check_specific_boats():
     if not os.path.exists("config.json"):
         print("config.json 파일이 없습니다.")
         return
@@ -40,29 +40,30 @@ def check_all_combinations():
     driver = webdriver.Chrome(options=options)
 
     try:
-        # 배 사이트별로 접속
         for site in sites:
-            name = site["name"]
+            site_name = site["name"]
             url = site["url"]
+            target_boats = site.get("target_boats", [])
 
-            print(f"접속 중: {name}")
+            print(f"접속 중: {site_name}")
             driver.get(url)
             time.sleep(3)
 
             page_source = driver.page_source
 
-            # 등록된 모든 날짜를 각각 검사
             for date in target_dates:
-                print(f" - 검사 날짜: {date}")
-                
                 if date in page_source:
-                    if "예약하기" in page_source:
-                        msg = f"🎉 **[대박! 빈자리 발견]**\n\n**{name}**\n📅 **{date}** 예약 가능 상태 포착!\n👉 [바로 예약하기]({url})"
-                        send_telegram_message(msg)
-                    else:
-                        print(f"   -> {date}: 날짜는 있으나 마감 상태")
+                    for boat in target_boats:
+                        if boat in page_source:
+                            if "예약하기" in page_source:
+                                msg = f"🎉 **[원하던 배 빈자리 발견!]**\n\n선단: {site_name}\n배 이름: **{boat}**\n날짜: 📅 **{date}**\n👉 [바로 예약하기]({url})"
+                                send_telegram_message(msg)
+                            else:
+                                print(f" - {date} [{boat}]: 날짜와 배 이름은 있으나 마감 상태")
+                        else:
+                            print(f" - {date}: 해당 페이지에 '{boat}' 정보 없음")
                 else:
-                    print(f"   -> {date}: 정보 없음")
+                    print(f" - {date}: 날짜 정보 없음")
 
                 time.sleep(1)
 
@@ -76,4 +77,4 @@ def check_all_combinations():
         driver.quit()
 
 if __name__ == "__main__":
-    check_all_combinations()
+    check_specific_boats()
