@@ -67,18 +67,15 @@ def check_specific_boats():
             for date_str in target_dates:
                 parts = date_str.replace("일", "").split("월")
                 if len(parts) == 2:
-                    m_val = parts[0].strip() # "11"
-                    d_val = parts[1].strip() # "16"
+                    m_val = parts[0].strip()
+                    d_val = parts[1].strip()
                 else:
                     continue
 
-                # 📌 사이트 플랫폼별 맞춤형 다이렉트 URL 생성
                 if "sunsang24.com" in base_url:
-                    # 선상24 계열 URL 구조 (예: .../schedule_fleet/202611)
                     base_clean = base_url.rstrip("/")
                     target_url = f"{base_clean}/2026{m_val.zfill(2)}"
                 else:
-                    # 일반 PHP 예약 시스템 URL 구조 (제우스호, 야야, 신규 선단 등)
                     base_clean = base_url.split("?")[0]
                     target_url = f"{base_clean}?mid=bk&year=2026&month={m_val}&day={d_val}&mode=list&won=1&PA_N_UID=0&sel=day"
 
@@ -92,7 +89,6 @@ def check_specific_boats():
                 time.sleep(2)
                 remove_popups(driver)
 
-                # 선상24 계열의 경우 해당 월 페이지 진입 후 특정 일자 요소가 있다면 클릭 보완 가능
                 if "sunsang24.com" in base_url:
                     try:
                         day_elements = driver.find_elements(By.XPATH, f"//*[text()='{d_val}' or contains(text(), '{d_val}일')]")
@@ -104,7 +100,7 @@ def check_specific_boats():
                     except Exception:
                         pass
 
-                # 📌 행 데이터 분석
+                # 📌 정밀 분석: 테이블의 각 행(<tr>)을 순회하며 배 이름과 예약 상태 셀(<td>)을 개별 검사
                 rows = driver.find_elements(By.TAG_NAME, "tr")
 
                 for boat in target_boats:
@@ -114,12 +110,15 @@ def check_specific_boats():
                     for row in rows:
                         try:
                             row_text = row.text
+                            # 해당 행에 타겟 배 이름이 포함되어 있는지 확인
                             if boat in row_text:
-                                if any(kw in row_text for kw in ["예약완료", "예약 완료", "대기하기", "예약마감", "마감", "매진"]):
+                                # 행 내부의 텍스트나 버튼 상태 분석
+                                if any(kw in row_text for kw in ["예약완료", "예약 완료", "대기하기", "예약마감", "매진"]) and "예약하기" not in row_text and "바로예약" not in row_text:
                                     status_msg = "마감 / 예약완료 상태"
-                                    break
+                                    continue
                                 
-                                if "예약하기" in row_text or "바로예약" in row_text or ("명" in row_text and "입금자" not in row_text):
+                                # 예약 가능 키워드 또는 잔여석 숫자가 명확히 있는 경우
+                                if "예약하기" in row_text or "바로예약" in row_text or "잔여" in row_text or ("명" in row_text and "입금자" not in row_text):
                                     found_real_slot = True
                                     status_msg = "예약 가능"
                                     break
